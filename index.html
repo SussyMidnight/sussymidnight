@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hivemind Simulation</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: #111;
+        color: #fff;
+        font-family: Arial, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+
+      
+
+      #simulation {
+        position: relative;
+        width: 800px;
+        height: 600px;
+        background-color: #222;
+        border: 2px solid #444;
+      }
+
+      .hivemind {
+        position: absolute;
+        border-radius: 50%;
+        width: 10px;
+        height: 10px;
+        border: 2px solid transparent;
+      }
+
+      .camp {
+        position: absolute;
+        border-radius: 50%;
+        border: 2px dashed #666;
+        width: 50px;
+        height: 50px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 10px;
+        color: #fff;
+      }
+
+      .food-patch {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        background-color: #0f0;
+        border-radius: 50%;
+        box-shadow: 0 0 5px #0f0, 0 0 10px #0f0;
+      }
+
+      .predator {
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        background-color: #800;
+        border-radius: 50%;
+      }
+
+      .obstacle {
+        position: absolute;
+        background-color: #555;
+        border: 1px solid #777;
+      }
+
+      #legend {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background-color: rgba(0, 0, 0, 0.7);
+        padding: 10px;
+        border-radius: 5px;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+      }
+
+      .legend-color {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 5px;
+      }
+
+      .legend-separator {
+        height: 1px;
+        background-color: #666;
+        margin: 10px 0;
+      }
+
+      .tooltip {
+        position: absolute;
+        background-color: rgba(0, 0, 0, 0.8);
+        color: #fff;
+        padding: 5px;
+        border-radius: 3px;
+        font-size: 12px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+
+      #graph-container {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background-color: rgba(0, 0, 0, 0.7);
+        padding: 10px;
+        border-radius: 5px;
+        display: none;
+        width: 300px;
+        height: 200px;
+      }
+
+      #toggle-graph {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        background-color: #444;
+        color: #fff;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <div id="simulation"></div>
+    <div id="legend">
+      <div class="legend-item">
+        <div class="legend-color" style="background-color: #00f;"></div>
+        <span>Aerial Hivemind</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background-color: #f00;"></div>
+        <span>Ground Hivemind</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background-color: #0ff;"></div>
+        <span>Hybrid Hivemind</span>
+      </div>
+      <div class="legend-separator"></div>
+      <div class="legend-item">
+        <div class="legend-color" style="border: 2px solid #0f0;"></div>
+        <span>Symbiotic</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="border: 2px solid #f00;"></div>
+        <span>Parasitic</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="border: 2px solid #ff0;"></div>
+        <span>Competitive</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="border: 2px solid #888;"></div>
+        <span>Passive</span>
+      </div>
+      <div class="legend-separator"></div>
+      <div class="legend-item">
+        <div class="legend-color" style="background-color: #0f0;"></div>
+        <span>Food Patch</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background-color: #800;"></div>
+        <span>Predator</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background-color: #555;"></div>
+        <span>Obstacle</span>
+      </div>
+    </div>
+    <button id="toggle-graph">Toggle Graph</button>
+    <div id="graph-container">
+      <canvas id="graph"></canvas>
+    </div>
+    <div id="tooltip" class="tooltip"></div>
+
+    <script>
+      const simulation = document.getElementById('simulation');
+      const tooltip = document.getElementById('tooltip');
+      const toggleGraphButton = document.getElementById('toggle-graph');
+      const graphContainer = document.getElementById('graph-container');
+      const graphCanvas = document.getElementById('graph');
+      const width = 800;
+      const height = 600;
+      const numHiveminds = 50;
+      const numCamps = 5;
+      const numFoodPatches = 10;
+      const numPredators = 3;
+      const numObstacles = 10;
+      const foodPatchSize = 8;
+      const foodRegenTime = 10000;
+      const minFoodDistance = 150;
+      const collisionDistance = 15;
+      const heatWaveRadius = 30;
+      const heatWaveCost = 10;
+      const campRadius = 25;
+      const minCampDistance = 150;  // Minimum distance between camps
+      const minObstacleCampDistance = 100;  // Min distance between obstacles and camps
+      const minObstacleDistance = 80;  // Minimum distance between obstacles
+      const minFoodDistanceFromObstacles = 50;  // Min distance from food to obstacles
+      const minFoodDistanceFromCamps = 75;  // Min distance from food to camps
+
+      // Modified spawnCamps function
+      function spawnCamps() {
+        for (let i = 0; i < numCamps; i++) {
+          let validPosition = false;
+          let x, y, attempts = 0;
+          
+          while (!validPosition && attempts < 100) {
+            x = Math.random() * (width - 50);
+            y = Math.random() * (height - 50);
+            validPosition = true;
+
+            // Check against other camps
+            for (const camp of camps) {
+              const dx = camp.x - x;
+              const dy = camp.y - y;
+              if (Math.hypot(dx, dy) < minCampDistance) {
+                validPosition = false;
+                break;
+              }
+            }
+
+            // Check against obstacles
+            if (validPosition) {
+              validPosition = !isPositionBlocked(x, y, minObstacleCampDistance);
+            }
+
+            attempts++;
+          }
+          
+          if (validPosition) {
+            camps.push(new Camp(x, y));
+          }
+        }
+      }
+
+      let hiveminds = [];
+      let camps = [];
+      let foodPatches = [];
+      let predators = [];
+      let obstacles = [];
+      let dayCounter = 0;
+      let energyGainedToday = 0;
+      let deathsToday = 0;
+      const temperamentStats = {
+        symbiotic: { energyGained: 0, deaths: 0 },
+        parasitic: { energyGained: 0, deaths: 0 },
+        competitive: { energyGained: 0, deaths: 0 },
+        passive: { energyGained: 0, deaths: 0 },
+      };
+      const history = {
+        days: [],
+        energyGained: [],
+        deaths: [],
+        symbiotic: [],
+        parasitic: [],
+        competitive: [],
+        passive: [],
+      };
+
+      // Chart.js setup
+      const chart = new Chart(graphCanvas, {
+        type: 'line',
+        data: {
+          labels: history.days,
+          datasets: [
+            {
+              label: 'Energy Gained',
+              data: history.energyGained,
+              borderColor: '#0f0',
+              fill: false,
+              yAxisID: 'y',
+            },
+            {
+              label: 'Deaths',
+              data: history.deaths,
+              borderColor: '#f00',
+              fill: false,
+              yAxisID: 'y1',
+            },
+            {
+              label: 'Symbiotic',
+              data: history.symbiotic,
+              borderColor: '#0f0',
+              fill: false,
+              hidden: true,
+              yAxisID: 'y',
+            },
+            {
+              label: 'Parasitic',
+              data: history.parasitic,
+              borderColor: '#f00',
+              fill: false,
+              hidden: true,
+              yAxisID: 'y',
+            },
+            {
+              label: 'Competitive',
+              data: history.competitive,
+              borderColor: '#ff0',
+              fill: false,
+              hidden: true,
+              yAxisID: 'y',
+            },
+            {
+              label: 'Passive',
+              data: history.passive,
+              borderColor: '#888',
+              fill: false,
+              hidden: true,
+              yAxisID: 'y',
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              display: true,
+              title: {
+                display: true,
+                text: 'Days',
+              },
+            },
+            y: {
+              type: 'linear',
+              display: true,
+              position: 'left',
+              title: {
+                display: true,
+                text: 'Energy Gained',
+              },
+            },
+            y1: {
+              type: 'linear',
+              display: true,
+              position: 'right',
+              title: {
+                display: true,
+                text: 'Deaths',
+              },
+              grid: {
+                drawOnChartArea: false,
+              },
+            },
+          },
+        },
+      });
+
+      // Toggle graph visibility
+      toggleGraphButton.addEventListener('click', () => {
+        graphContainer.style.display = graphContainer.style.display === 'none' ? 'block' : 'none';
+      });
+
+      class Obstacle {
+        constructor(x, y, width, height) {
+          this.x = x;
+          this.y = y;
+          this.width = width;
+          this.height = height;
+          this.element = document.createElement('div');
+          this.element.classList.add('obstacle');
+          this.element.style.left = `${x}px`;
+          this.element.style.top = `${y}px`;
+          this.element.style.width = `${width}px`;
+          this.element.style.height = `${height}px`;
+          simulation.appendChild(this.element);
+        }
+      }
+
+      class Camp {
+        constructor(x, y) {
+          this.x = x;
+          this.y = y;
+          this.temperament = this.randomTemperament();
+          this.element = document.createElement('div');
+          this.element.classList.add('camp');
+          this.element.style.left = `${x}px`;
+          this.element.style.top = `${y}px`;
+          simulation.appendChild(this.element);
+
+          // Tooltip on hover
+          this.element.addEventListener('mousemove', (e) => {
+            tooltip.style.left = `${e.pageX + 10}px`;
+            tooltip.style.top = `${e.pageY + 10}px`;
+            tooltip.style.opacity = 1;
+            this.updateTooltip();
+          });
+          this.element.addEventListener('mouseleave', () => {
+            tooltip.style.opacity = 0;
+          });
+        }
+
+        randomTemperament() {
+          const temperaments = ['symbiotic', 'parasitic', 'competitive', 'passive'];
+          return temperaments[Math.floor(Math.random() * temperaments.length)];
+        }
+
+        updateTooltip() {
+          const campPopulation = hiveminds.filter(h => h.camp === this).length;
+          const totalEnergy = hiveminds.filter(h => h.camp === this).reduce((sum, h) => sum + h.energy, 0);
+          tooltip.textContent = `
+            Temperament: ${this.temperament}
+            Population: ${campPopulation}
+            Total Energy: ${totalEnergy.toFixed(2)}
+          `;
+        }
+      }
+
+      class Hivemind {
+        constructor(type, x, y, camp) {
+          this.type = type;
+          this.x = x;
+          this.y = y;
+          this.camp = camp;
+          this.energy = 100;
+          this.temperament = camp.temperament;
+          this.targetFoodPatch = null;
+          this.targetHivemind = null;
+          this.lastStealTime = 0;
+          this.lastHeatWaveTime = 0;
+          this.path = [];
+          this.element = document.createElement('div');
+          this.element.classList.add('hivemind');
+          this.element.style.backgroundColor = this.getColor();
+          this.element.style.borderColor = this.getTemperamentColor();
+          simulation.appendChild(this.element);
+          this.updatePosition();
+
+          // Tooltip on hover
+          this.element.addEventListener('mousemove', (e) => {
+            tooltip.style.left = `${e.pageX + 10}px`;
+            tooltip.style.top = `${e.pageY + 10}px`;
+            tooltip.style.opacity = 1;
+            this.updateTooltip();
+          });
+          this.element.addEventListener('mouseleave', () => {
+            tooltip.style.opacity = 0;
+          });
+        }
+
+        getColor() {
+          switch (this.type) {
+            case 'aerial': return '#00f';
+            case 'ground': return '#f00';
+            case 'hybrid': return '#0ff';
+          }
+        }
+
+        getTemperamentColor() {
+          switch (this.temperament) {
+            case 'symbiotic': return '#0f0';
+            case 'parasitic': return '#f00';
+            case 'competitive': return '#ff0';
+            case 'passive': return '#888';
+          }
+        }
+
+        updateTooltip() {
+          tooltip.textContent = `
+            Type: ${this.type}
+            Temperament: ${this.temperament}
+            Energy: ${this.energy.toFixed(2)}
+          `;
+        }
+
+        updatePosition() {
+          this.element.style.left = `${this.x}px`;
+          this.element.style.top = `${this.y}px`;
+        }
+
+        findBestFoodPatch() {
+          let bestPatch = null;
+          let bestScore = Infinity;
+
+          foodPatches.forEach(patch => {
+            if (patch.foodLevel > 0) {
+              const dist = Math.hypot(this.x - patch.x, this.y - patch.y);
+              const foragingPressure = patch.foragers.length;
+              const score = dist + foragingPressure * 20;
+              if (score < bestScore) {
+                bestPatch = patch;
+                bestScore = score;
+              }
+            }
+          });
+
+          if (this.targetFoodPatch) {
+            this.targetFoodPatch.foragers.splice(this.targetFoodPatch.foragers.indexOf(this), 1);
+          }
+          if (bestPatch) {
+            bestPatch.foragers.push(this);
+          }
+          return bestPatch;
+        }
+
+        findTargetHivemind() {
+          let target = null;
+          let minDistance = Infinity;
+
+          hiveminds.forEach(other => {
+            if (other !== this && other.camp !== this.camp && other.energy > 0) {
+              const dist = Math.hypot(this.x - other.x, this.y - other.y);
+              if (dist < minDistance) {
+                target = other;
+                minDistance = dist;
+              }
+            }
+          });
+
+          return target;
+        }
+
+        useHeatWave() {
+          if (this.energy >= heatWaveCost && Date.now() - this.lastHeatWaveTime > 3000) {
+            this.energy -= heatWaveCost;
+            this.lastHeatWaveTime = Date.now();
+
+            hiveminds.forEach(other => {
+              if (other.temperament === 'parasitic' && Math.hypot(this.x - other.x, this.y - other.y) < heatWaveRadius) {
+                other.energy -= 10; // Damage the parasite
+              }
+            });
+          }
+        }
+
+        move() {
+          const speed = 1;
+          let dx = 0, dy = 0;
+
+          if (this.temperament === 'parasitic') {
+            if (!this.targetHivemind || this.targetHivemind.energy <= 0) {
+              this.targetHivemind = this.findTargetHivemind();
+            }
+
+            if (this.targetHivemind) {
+              dx = this.targetHivemind.x - this.x;
+              dy = this.targetHivemind.y - this.y;
+            }
+          } else {
+            if (!this.targetFoodPatch || this.targetFoodPatch.foodLevel <= 0 || Math.random() < 0.01) {
+              this.targetFoodPatch = this.findBestFoodPatch();
+            }
+
+            if (this.targetFoodPatch) {
+              dx = this.targetFoodPatch.x - this.x;
+              dy = this.targetFoodPatch.y - this.y;
+            } else {
+              dx = this.camp.x - this.x;
+              dy = this.camp.y - this.y;
+            }
+          }
+
+          const angle = Math.atan2(dy, dx);
+          this.x += Math.cos(angle) * speed;
+          this.y += Math.sin(angle) * speed;
+
+          // Avoid obstacles
+          obstacles.forEach(obstacle => {
+            if (
+              this.x + 10 > obstacle.x && this.x < obstacle.x + obstacle.width &&
+              this.y + 10 > obstacle.y && this.y < obstacle.y + obstacle.height
+            ) {
+              // Push hivemind out of the obstacle
+              const obstacleCenterX = obstacle.x + obstacle.width / 2;
+              const obstacleCenterY = obstacle.y + obstacle.height / 2;
+              const angleToCenter = Math.atan2(this.y - obstacleCenterY, this.x - obstacleCenterX);
+              this.x += Math.cos(angleToCenter) * 2;
+              this.y += Math.sin(angleToCenter) * 2;
+            }
+          });
+
+          // Avoid other hiveminds
+          hiveminds.forEach(other => {
+            if (other !== this) {
+              const dist = Math.hypot(this.x - other.x, this.y - other.y);
+              if (dist < collisionDistance) {
+                const angle = Math.atan2(this.y - other.y, this.x - other.x);
+                this.x += Math.cos(angle) * 1;
+                this.y += Math.sin(angle) * 1;
+              }
+            }
+          });
+
+          // Stay within bounds
+          this.x = Math.max(0, Math.min(width - 10, this.x));
+          this.y = Math.max(0, Math.min(height - 10, this.y));
+          this.updatePosition();
+        }
+
+        forage() {
+          if (this.targetFoodPatch) {
+            const dist = Math.hypot(this.x - this.targetFoodPatch.x, this.y - this.targetFoodPatch.y);
+            if (dist < 20) {
+              this.energy += 1;
+              energyGainedToday += 1;
+              temperamentStats[this.temperament].energyGained += 1;
+              this.targetFoodPatch.foodLevel -= 1;
+              this.targetFoodPatch.updateAppearance();
+            }
+          }
+        }
+
+        update() {
+          this.move();
+          this.forage();
+          this.energy -= 0.05;
+          if (this.energy <= 0) this.die();
+        }
+
+        die() {
+          this.element.remove();
+          hiveminds.splice(hiveminds.indexOf(this), 1);
+          if (this.targetFoodPatch) {
+            this.targetFoodPatch.foragers.splice(this.targetFoodPatch.foragers.indexOf(this), 1);
+          }
+          deathsToday++;
+          temperamentStats[this.temperament].deaths++;
+        }
+      }
+
+      class FoodPatch {
+        constructor(x, y) {
+          this.x = x;
+          this.y = y;
+          this.foodLevel = 100;
+          this.foragers = [];
+          this.element = document.createElement('div');
+          this.element.classList.add('food-patch');
+          this.element.style.left = `${x - foodPatchSize / 2}px`;
+          this.element.style.top = `${y - foodPatchSize / 2}px`;
+          this.element.style.width = `${foodPatchSize}px`;
+          this.element.style.height = `${foodPatchSize}px`;
+          this.updateAppearance();
+          simulation.appendChild(this.element);
+        }
+
+        updateAppearance() {
+          const opacity = this.foodLevel / 100;
+          this.element.style.opacity = opacity;
+          if (this.foodLevel <= 0) {
+            this.element.style.backgroundColor = '#f00';
+          } else {
+            this.element.style.backgroundColor = '#0f0';
+          }
+        }
+
+        regenerate() {
+          if (this.foodLevel <= 0) {
+            this.foodLevel = 100;
+            this.updateAppearance();
+          }
+        }
+      }
+
+      class Predator {
+        constructor(x, y) {
+          this.x = x;
+          this.y = y;
+          this.energy = 100;
+          this.element = document.createElement('div');
+          this.element.classList.add('predator');
+          simulation.appendChild(this.element);
+          this.updatePosition();
+        }
+
+        updatePosition() {
+          this.element.style.left = `${this.x}px`;
+          this.element.style.top = `${this.y}px`;
+        }
+
+        move() {
+          const speed = 1.5;
+          const target = hiveminds[Math.floor(Math.random() * hiveminds.length)];
+          if (target) {
+            const dx = target.x - this.x;
+            const dy = target.y - this.y;
+            const angle = Math.atan2(dy, dx);
+            this.x += Math.cos(angle) * speed;
+            this.y += Math.sin(angle) * speed;
+          }
+
+          // Hunt hiveminds
+          hiveminds.forEach(hivemind => {
+            if (Math.hypot(this.x - hivemind.x, this.y - hivemind.y) < 10) {
+              hivemind.energy -= 10;
+              this.energy += 5;
+            }
+          });
+
+          // Stay within bounds
+          this.x = Math.max(0, Math.min(width - 10, this.x));
+          this.y = Math.max(0, Math.min(height - 10, this.y));
+          this.updatePosition();
+        }
+
+        update() {
+          this.move();
+          this.energy -= 0.02;
+          if (this.energy <= 0) this.die();
+        }
+
+        die() {
+          this.element.remove();
+          predators.splice(predators.indexOf(this), 1);
+        }
+      }
+
+      function spawnHiveminds() {
+        for (let i = 0; i < numHiveminds; i++) {
+          const type = ['aerial', 'ground', 'hybrid'][Math.floor(Math.random() * 3)];
+          const camp = camps[Math.floor(Math.random() * camps.length)];
+          const x = camp.x + (Math.random() - 0.5) * 20;
+          const y = camp.y + (Math.random() - 0.5) * 20;
+          hiveminds.push(new Hivemind(type, x, y, camp));
+        }
+      }
+
+      function spawnCamps() {
+        for (let i = 0; i < numCamps; i++) {
+          let x, y;
+          do {
+            x = Math.random() * (width - 50);
+            y = Math.random() * (height - 50);
+          } while (isPositionBlocked(x, y)); // Ensure camps don't spawn in obstacles
+          camps.push(new Camp(x, y));
+        }
+      }
+
+      function spawnFoodPatches() {
+        while (foodPatches.length < numFoodPatches) {
+          const x = Math.random() * (width - foodPatchSize);
+          const y = Math.random() * (height - foodPatchSize);
+          if (!isFoodPatchTooClose(x, y)) {
+            foodPatches.push(new FoodPatch(x, y));
+          }
+        }
+      }
+
+      function spawnPredators() {
+        for (let i = 0; i < numPredators; i++) {
+          const x = Math.random() * width;
+          const y = Math.random() * height;
+          predators.push(new Predator(x, y));
+        }
+      }
+
+      function spawnObstacles() {
+        for (let i = 0; i < numObstacles; i++) {
+          let validPosition = false;
+          let x, y, w, h, attempts = 0;
+
+          while (!validPosition && attempts < 100) {
+            x = Math.random() * (width - 100);
+            y = Math.random() * (height - 100);
+            w = 50 + Math.random() * 50;
+            h = 50 + Math.random() * 50;
+            validPosition = true;
+
+            // Check distance to other obstacles
+            for (const obstacle of obstacles) {
+              const dx = obstacle.x - x;
+              const dy = obstacle.y - y;
+              if (Math.hypot(dx, dy) < minObstacleDistance) {
+                validPosition = false;
+                break;
+              }
+            }
+
+            // Check distance to camps
+            if (validPosition) {
+              for (const camp of camps) {
+                const dx = camp.x - x;
+                const dy = camp.y - y;
+                if (Math.hypot(dx, dy) < minObstacleCampDistance) {
+                  validPosition = false;
+                  break;
+                }
+              }
+            }
+
+            attempts++;
+          }
+
+          if (validPosition) {
+            obstacles.push(new Obstacle(x, y, w, h));
+          }
+        }
+      }
+
+      // Modified isPositionBlocked check
+      function isPositionBlocked(checkX, checkY, buffer = 0) {
+        return obstacles.some(obstacle => {
+          const obstacleRight = obstacle.x + obstacle.width;
+          const obstacleBottom = obstacle.y + obstacle.height;
+          const expandedX = obstacle.x - buffer;
+          const expandedY = obstacle.y - buffer;
+          const expandedRight = obstacleRight + buffer;
+          const expandedBottom = obstacleBottom + buffer;
+
+          return checkX >= expandedX &&
+                 checkX <= expandedRight &&
+                 checkY >= expandedY &&
+                 checkY <= expandedBottom;
+        });
+      }
+
+      // Modified food patch placement check
+      function isFoodPatchTooClose(x, y) {
+        return foodPatches.some(patch => Math.hypot(x - patch.x, y - patch.y) < minFoodDistance) ||
+               isPositionBlocked(x, y, minFoodDistanceFromObstacles) ||
+               camps.some(camp => Math.hypot(x - camp.x, y - camp.y) < minFoodDistanceFromCamps);
+      }
+
+
+      function isPositionBlocked(x, y) {
+        return obstacles.some(obstacle => (
+          x + 50 > obstacle.x && x < obstacle.x + obstacle.width &&
+          y + 50 > obstacle.y && y < obstacle.y + obstacle.height
+        ));
+      }
+
+      function isFoodPatchTooClose(x, y) {
+        return foodPatches.some(patch => Math.hypot(x - patch.x, y - patch.y) < minFoodDistance);
+      }
+
+      function regenerateFoodPatches() {
+        foodPatches.forEach(patch => patch.regenerate());
+      }
+
+      function updateGraph() {
+        if (history.days.length > 20) {
+          history.days.shift();
+          history.energyGained.shift();
+          history.deaths.shift();
+          history.symbiotic.shift();
+          history.parasitic.shift();
+          history.competitive.shift();
+          history.passive.shift();
+        }
+
+        history.days.push(dayCounter);
+        history.energyGained.push(energyGainedToday);
+        history.deaths.push(deathsToday);
+        history.symbiotic.push(temperamentStats.symbiotic.energyGained);
+        history.parasitic.push(temperamentStats.parasitic.energyGained);
+        history.competitive.push(temperamentStats.competitive.energyGained);
+        history.passive.push(temperamentStats.passive.energyGained);
+
+        chart.data.labels = history.days;
+        chart.data.datasets[0].data = history.energyGained;
+        chart.data.datasets[1].data = history.deaths;
+        chart.data.datasets[2].data = history.symbiotic;
+        chart.data.datasets[3].data = history.parasitic;
+        chart.data.datasets[4].data = history.competitive;
+        chart.data.datasets[5].data = history.passive;
+        chart.update();
+      }
+
+      function resetDailyStats() {
+        energyGainedToday = 0;
+        deathsToday = 0;
+        for (const temperament in temperamentStats) {
+          temperamentStats[temperament].energyGained = 0;
+          temperamentStats[temperament].deaths = 0;
+        }
+      }
+
+      function update() {
+        hiveminds.forEach(hivemind => hivemind.update());
+        predators.forEach(predator => predator.update());
+
+        // Increment day counter every 10 seconds (simulated day)
+        if (Date.now() - lastDayUpdate > 10000) {
+          dayCounter++;
+          updateGraph();
+          resetDailyStats();
+          lastDayUpdate = Date.now();
+        }
+
+        requestAnimationFrame(update);
+      }
+
+      let lastDayUpdate = Date.now();
+      function init() {
+        spawnCamps();
+        spawnHiveminds();
+        spawnFoodPatches();
+        spawnPredators();
+        spawnObstacles();
+        setInterval(regenerateFoodPatches, foodRegenTime);
+        update();
+      }
+
+      init();
+    </script>
+  </body>
+</html>
